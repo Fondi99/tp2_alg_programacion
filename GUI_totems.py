@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, scrolledtext
 import requests
 import cv2
 import numpy as np
@@ -20,6 +20,7 @@ class CinemaApp:
         self.cinema_id, self.locations, self.available_seats = self.get_cinema_data()
         self.selected_location = tk.StringVar()
         self.movie_labels = []
+        self.actual_location = 1
 
         self.filtered_movies = False
         self.search_entry = None
@@ -34,6 +35,7 @@ class CinemaApp:
         selected_location = self.selected_location.get()
         location_index = self.locations.index(selected_location)
         cinema_id = self.cinema_id[location_index]
+        self.actual_location= cinema_id
         movies = self.get_cinema_movies_data(cinema_id)[0]["has_movies"]
         self.display_movies(self.movies_frame, movies)
 
@@ -72,21 +74,26 @@ class CinemaApp:
         response = requests.get(f"{self.api_url}/movies/{movie_id}", headers=headers)
 
         if response.status_code == 200:
-            movies = response.json()
-            movie_id = [movie["id"] for movie in movies]
-            poster_id = [movie["poster_id"] for movie in movies]
-            release_date = [movie["release_date"] for movie in movies]
-            movie_name = [movie["name"] for movie in movies]
-            synopsis = [movie["synopsis"] for movie in movies]
-            gender = [movie["gender"] for movie in movies]
-            duration = [movie["duration"] for movie in movies]
-            actors = [movie["actors"] for movie in movies]
-            directors = [movie["directors"] for movie in movies]
-            rating = [movie["rating"] for movie in movies]
+            movie = response.json()
+            movie_id = movie.get("id", None)
+            poster_id = movie.get("poster_id", None)
+            release_date = movie.get("release_date", "")
+            movie_name = movie.get("name", None)
+            synopsis = movie.get("synopsis", None)
+            gender = movie.get("gender", None)
+
+            # Convert duration to integer (assuming it's always in minutes)
+            duration_raw = movie.get("duration", "0min")
+            duration = int(''.join(filter(str.isdigit, duration_raw)))
+
+            actors = movie.get("actors", "").split(", ")
+            directors = movie.get("directors", "").split(", ")
+            rating = movie.get("rating", None)
+
             return movie_id, poster_id, release_date, movie_name, synopsis, gender, duration, actors, directors, rating
         else:
             print("Error al obtener datos de la película desde la API")
-            return [], [], [], [], [], [], [], [], [], []
+            return None, None, None, None, None, None, None, None, None, None
 
     def get_poster_data(self, poster_id):
         headers = {"Authorization": self.api_token}
@@ -168,6 +175,41 @@ class CinemaApp:
         search_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
         search_button.grid(row=2, column=2, padx=10, pady=10)
 
+    def show_movie_details(self, movie_id):
+        # Obtener datos de la película
+        movie_data = self.get_movie_data(int(movie_id))
+
+        # Crear la pantalla secundaria
+        secondary_screen = tk.Toplevel(self.root)
+        secondary_screen.geometry("600x400")
+        secondary_screen.title("Detalles de la Película")
+
+        # Mostrar sala de proyección
+        cinema_label = ttk.Label(secondary_screen, text=f"Sala de proyección: {self.selected_location.get()}")
+        cinema_label.pack(pady=10)
+
+        # Mostrar sinopsis, duración, actores y género
+        movie_id, poster_id, release_date, movie_name, synopsis, gender, duration, actors, directors, rating = movie_data
+        details_label = ttk.Label(secondary_screen, text=f"Detalles de {movie_name}:")
+        details_label.pack(pady=10)
+
+        # Create a scrolled text widget
+        text_widget = scrolledtext.ScrolledText(secondary_screen, wrap=tk.WORD, width=40, height=1)
+        text_widget.pack(expand=True, fill="both")
+
+        details_text = f"Sinopsis: {synopsis}"
+        text_widget.insert(tk.END, details_text)
+        text_widget.configure(state=tk.DISABLED)
+
+        details_text2 = f"Género: {gender}\nDuración: {duration} minutos\nActores: {', '.join(actors)}"
+        details_info = ttk.Label(secondary_screen, text=details_text2, anchor="w")
+        details_info.pack(side="left")
+        details_info.pack(pady=10)
+
+        # Botón para volver a la pantalla principal
+        back_button = ttk.Button(secondary_screen, text="Volver a pantalla principal", command=secondary_screen.destroy)
+        back_button.pack(pady=20)
+
     def display_movies(self, container, movies):
         # Lógica existente para ocultar las películas en caso de búsqueda
         if self.filtered_movies:
@@ -183,13 +225,16 @@ class CinemaApp:
 
         for i, movie in enumerate(movies):
             # Calculate row and column based on index
-            row = i // 13
-            column = i % 13
+            row = i // 5
+            column = i % 5
             poster_id = movie
             if poster_id:
                 poster_data = self.get_poster_data(poster_id)
                 label = self.display_image_cv2(poster_data, row, container, column)
                 self.movie_labels.append(label)
+
+                # Bind the callback function to the label
+                label.bind("<Button-1>", lambda event, movie=poster_id: self.show_movie_details(movie))
 
     def display_image_cv2(self, poster_data, row, container, column):
         if poster_data:
@@ -224,7 +269,7 @@ class CinemaApp:
             self.filtered_movies = True  # Actualiza la variable de control
         else:
             # Si el Entry de búsqueda está vacío, muestra todas las películas
-            movies = self.get_cinema_movies_data(1)[0]["has_movies"]
+            movies = self.get_cinema_movies_data(self.actual_location)[0]["has_movies"]
             self.display_movies(self.movies_frame, movies)
             self.filtered_movies = False  # Actualiza la variable de control
 
@@ -236,9 +281,9 @@ class CinemaApp:
         filtered_movies = [movie_id[i] for i, name in enumerate(movie_names) if movie_name.lower() in name.lower()]
         return filtered_movies
 
-    def show_movie_details(self, movie):
-        # Implementa la transición a la pantalla secundaria
-        pass
+    # def show_movie_details(self, movie_id):
+    #     print("Pelicula", movie_id)
+    #     pass
 
 # Main
 if __name__ == "__main__":
