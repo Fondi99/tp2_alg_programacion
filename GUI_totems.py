@@ -1,16 +1,23 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 import requests
 import cv2
 import numpy as np
 import base64
 from PIL import Image, ImageTk
+import qrcode
 
 
 class CinemaApp:
     def __init__(self, root):
+        self.snack_checkbox = None
         self.root = root
         self.root.title("Cinema Totem App")
+
+        # Declare asientos as a class attribute
+        self.asientos = {}
+
+        self.carrito = {}
 
         # Variable para almacenar datos de la API
         self.api_url = "http://vps-3701198-x.dattaweb.com:4000"
@@ -49,6 +56,10 @@ class CinemaApp:
             cinema_id = [cinema["cinema_id"] for cinema in cinemas]
             locations = [cinema["location"] for cinema in cinemas]
             available_seats = [cinema["available_seats"] for cinema in cinemas]
+
+            # Set asientos if it's empty
+            if not self.asientos:
+                self.asientos = dict(zip(locations, available_seats))
             return cinema_id, locations, available_seats
         else:
             # Manejar el error según sea necesario
@@ -175,13 +186,16 @@ class CinemaApp:
         search_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
         search_button.grid(row=2, column=2, padx=10, pady=10)
 
+        checkout_button = ttk.Button(self.root, text="Checkout", command=self.show_checkout_screen)
+        checkout_button.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+
     def show_movie_details(self, movie_id):
         # Obtener datos de la película
         movie_data = self.get_movie_data(int(movie_id))
 
         # Crear la pantalla secundaria
         secondary_screen = tk.Toplevel(self.root)
-        secondary_screen.geometry("600x400")
+        secondary_screen.geometry("650x400")
         secondary_screen.title("Detalles de la Película")
 
         # Mostrar sala de proyección
@@ -203,12 +217,15 @@ class CinemaApp:
 
         details_text2 = f"Género: {gender}\nDuración: {duration} minutos\nActores: {', '.join(actors)}"
         details_info = ttk.Label(secondary_screen, text=details_text2, anchor="w")
-        details_info.pack(side="left")
         details_info.pack(pady=10)
 
         # Botón para volver a la pantalla principal
         back_button = ttk.Button(secondary_screen, text="Volver a pantalla principal", command=secondary_screen.destroy)
         back_button.pack(pady=20)
+
+        # Boton de reservar
+        reservar_button = ttk.Button(secondary_screen, text="Reservar", command=self.reservar)
+        reservar_button.pack(pady=10)
 
     def display_movies(self, container, movies):
         # Lógica existente para ocultar las películas en caso de búsqueda
@@ -254,9 +271,9 @@ class CinemaApp:
             label.grid(row=row, column=column, padx=10, pady=5)
             label.image = image_tk
 
-            return label  # Ensure to return the label
+            return label
 
-        return None  # Return None if there is no poster_data
+        return None
 
     def search_movie(self):
         """
@@ -266,7 +283,7 @@ class CinemaApp:
         if search_entry_content:
             filtered_movie_ids = self.filter_movies(search_entry_content)
             self.display_movies(self.movies_frame, filtered_movie_ids)
-            self.filtered_movies = True  # Actualiza la variable de control
+            self.filtered_movies = True
         else:
             # Si el Entry de búsqueda está vacío, muestra todas las películas
             movies = self.get_cinema_movies_data(self.actual_location)[0]["has_movies"]
@@ -281,9 +298,152 @@ class CinemaApp:
         filtered_movies = [movie_id[i] for i, name in enumerate(movie_names) if movie_name.lower() in name.lower()]
         return filtered_movies
 
-    # def show_movie_details(self, movie_id):
-    #     print("Pelicula", movie_id)
-    #     pass
+    def reservar(self):
+        # Check if asientos is empty, and initialize it if necessary
+        if not self.asientos:
+            cinema_id, locations, available_seats = self.get_cinema_data()
+            self.asientos = dict(zip(locations, available_seats))
+
+        ubicacion = self.locations[int(self.actual_location) - 1]
+        if self.asientos[ubicacion]>0:
+            self.pantalla_reservar()
+        pass
+
+    def pantalla_reservar(self):
+        # Create the reservation screen
+        reserva_screen = tk.Toplevel(self.root)
+        reserva_screen.geometry("650x400")
+        reserva_screen.title("Reserva de película")
+
+        # Entry widgets for ticket details
+        quantity_label = ttk.Label(reserva_screen, text="Cantidad de entradas:")
+        quantity_entry = ttk.Entry(reserva_screen)
+        quantity_label.pack()
+        quantity_entry.pack()
+
+        unit_price_label = ttk.Label(reserva_screen, text="Valor unitario de cada entrada: $1000")
+        unit_price_label.pack()
+
+
+        # Button to add ticket details to the cart
+        add_to_cart_button = ttk.Button(reserva_screen, text="Agregar al carrito",
+                                        command=lambda: self.add_to_cart(quantity_entry.get(), 1000))
+        add_to_cart_button.pack()
+
+        # Button to add snacks to the cart
+        add_snack_button = ttk.Button(reserva_screen, text="Añadir Snack", command=self.show_snacks)
+        add_snack_button.pack()
+
+    def add_to_cart(self, quantity, unit_price):
+        try:
+            quantity = int(quantity)
+            unit_price = float(unit_price)
+            total_price = quantity * unit_price
+
+            if "Entradas" in self.carrito:
+                self.carrito["Entradas"] += quantity
+            else:
+                self.carrito["Entradas"] = quantity
+            print(f"Added {quantity} tickets to the cart. Total price: {total_price}")
+        except ValueError:
+            messagebox.showerror("Error", "Ingrese valores válidos para la cantidad y el precio unitario.")
+
+    def show_snacks(self):
+        # Retrieve snack data from the API (use your existing API request logic)
+        snacks_data = self.get_snack_data()
+
+        # Create a new window to display snack options
+        snacks_screen = tk.Toplevel(self.root)
+        snacks_screen.title("Añadir Snack al Carrito")
+
+        # Create Entry widgets for each snack along with their prices
+        snack_entries = {}
+        for snack, price in snacks_data.items():
+            label_text = f"{snack}: {price} pesos"
+            ttk.Label(snacks_screen, text=label_text).pack()
+
+            # Entry widget for quantity
+            quantity_entry = ttk.Entry(snacks_screen)
+            quantity_entry.pack()
+
+            snack_entries[snack] = quantity_entry
+
+        # Button to add entered quantities to the cart
+        add_snacks_to_cart_button = ttk.Button(snacks_screen, text="Agregar al carrito",
+                                               command=lambda: self.add_snacks_to_cart(snack_entries, snacks_screen))
+        add_snacks_to_cart_button.pack()
+
+    def add_snacks_to_cart(self, snack_entries, snacks_screen):
+        for snack, entry in snack_entries.items():
+            quantity = entry.get()
+            if quantity:
+                quantity = int(quantity)
+                self.carrito[snack] = quantity
+
+        print("Added snacks to the cart:", self.carrito)
+
+        # Destroy the snacks screen
+        snacks_screen.destroy()
+
+    def show_checkout_screen(self):
+        checkout_screen = tk.Toplevel(self.root)
+        checkout_screen.title("Carrito")
+
+        # Create labels to display cart contents
+        ttk.Label(checkout_screen, text="Detalle de la compra").pack(pady=10)
+
+        total_price = 0  # Variable to calculate the total price
+
+        # Iterate through items in the cart
+        for item_id, quantity in self.carrito.items():
+            # For snacks, fetch the price dynamically
+            if item_id != 'Entradas':
+                item_details = self.get_snack_data().get(item_id)
+                if item_details:
+                    item_price = float(item_details)
+                else:
+                    # Handle the case where the price is not available
+                    item_price = 0.0
+            else:
+                # For 'Entradas', use a fixed price since it's not in the snack data
+                item_price = 1000.0
+
+            # Calculate the price for the quantity
+            item_total_price = quantity * item_price
+            total_price += item_total_price
+
+            # Display item details in the checkout screen
+            ttk.Label(checkout_screen, text=f"{item_id}: {quantity}x ${item_price:.2f} = ${item_total_price:.2f}").pack()
+
+        # Display the total price rounded to two decimal places
+        ttk.Label(checkout_screen, text=f"Total: ${total_price:.2f}").pack()
+
+        pagar_button = ttk.Button(checkout_screen, text="Pagar", command=lambda: self.generar_QR())
+        pagar_button.pack()
+
+    def get_item_details(self, item_id):
+        # Placeholder for item details (replace this with your actual data structure)
+        if item_id == 'Entradas':
+            return {"name": "Entradas de Cine", "price": 1000.0}
+
+        # For snacks, fetch the price dynamically
+        snack_data = self.get_snack_data().get(item_id)
+        if snack_data:
+            item_price = float(snack_data)
+        else:
+            # Handle the case where the price is not available
+            item_price = 0.0
+
+        return {"name": item_id, "price": item_price}
+
+    def generar_QR(self):
+        image = qrcode.make("La data de la compra")
+        image.save("QR-Compra " + "numero" + ".png")
+
+        image_1 = Image.open(r'QR-Compra numero.png')
+        im_1 = image_1.convert('RGB')
+        im_1.save(r'QR-Compra numero.pdf')
+
 
 # Main
 if __name__ == "__main__":
