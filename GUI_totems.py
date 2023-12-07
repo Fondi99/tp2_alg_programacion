@@ -2,8 +2,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import requests
-import cv2
-import numpy as np
+import io
 import base64
 from PIL import Image, ImageTk
 import qrcode
@@ -21,7 +20,6 @@ class AplicacionCine:
         self.ubicaciontotem = ''
         self.cantidad_entradas = 0
 
-        # Declarar asientos como un atributo de clase
         self.asientos = {}
 
         self.carrito = {}
@@ -30,7 +28,6 @@ class AplicacionCine:
         self.api_url = "http://vps-3701198-x.dattaweb.com:4000"
         self.api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.DGI_v9bwNm_kSrC-CQSb3dBFzxOlrtBDHcEGXvCFqgU"
 
-        # Variables de seguimiento
         self.cine_id, self.ubicaciones, self.sillas_disponibles = self.obtener_datos_cine()
         self.ubicacion_seleccionada = tk.StringVar()
         self.etiquetas_peliculas = []
@@ -163,7 +160,6 @@ class AplicacionCine:
         self.entrada_busqueda = entrada_busqueda
         boton_busqueda = ttk.Button(self.root, text="Buscar", command=self.buscar_pelicula)
 
-        # Diseño de la pantalla principal
         label_ubicacion.grid(row=0, column=0, padx=10, pady=10, sticky="w")
         combobox_ubicacion.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
@@ -234,12 +230,7 @@ class AplicacionCine:
         if datos_poster:
             _, image_data = datos_poster.split(",", 1)
             image_data = base64.b64decode(image_data)
-            image_np = np.frombuffer(image_data, np.uint8)
-            image_cv2 = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
-
-            resized_image = cv2.resize(image_cv2, (100, 150))
-            image_tk = Image.fromarray(cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB))
-            image_tk = ImageTk.PhotoImage(image_tk)
+            image_tk = ImageTk.PhotoImage(Image.open(io.BytesIO(bytearray(image_data))).resize((100, 150)))
 
             etiqueta = ttk.Label(container, image=image_tk)
             etiqueta.grid(row=row, column=column, padx=10, pady=5)
