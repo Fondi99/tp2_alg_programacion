@@ -1,3 +1,4 @@
+from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import requests
@@ -6,6 +7,7 @@ import numpy as np
 import base64
 from PIL import Image, ImageTk
 import qrcode
+import os
 
 
 class CinemaApp:
@@ -13,6 +15,11 @@ class CinemaApp:
         self.snack_checkbox = None
         self.root = root
         self.root.title("Cinema Totem App")
+
+        self.idqr = 1
+        self.pelicula = ''
+        self.ubicaciontotem = ''
+        self.cantidad_entradas = 0
 
         # Declare asientos as a class attribute
         self.asientos = {}
@@ -224,7 +231,7 @@ class CinemaApp:
         back_button.pack(pady=20)
 
         # Boton de reservar
-        reservar_button = ttk.Button(secondary_screen, text="Reservar", command=self.reservar)
+        reservar_button = ttk.Button(secondary_screen, text="Reservar", command=lambda: self.reservar(movie_data))
         reservar_button.pack(pady=10)
 
     def display_movies(self, container, movies):
@@ -298,18 +305,18 @@ class CinemaApp:
         filtered_movies = [movie_id[i] for i, name in enumerate(movie_names) if movie_name.lower() in name.lower()]
         return filtered_movies
 
-    def reservar(self):
+    def reservar(self, movie_data):
         # Check if asientos is empty, and initialize it if necessary
         if not self.asientos:
             cinema_id, locations, available_seats = self.get_cinema_data()
             self.asientos = dict(zip(locations, available_seats))
 
         ubicacion = self.locations[int(self.actual_location) - 1]
-        if self.asientos[ubicacion]>0:
-            self.pantalla_reservar()
+        if self.asientos[ubicacion] > 0:
+            self.pantalla_reservar(movie_data)
         pass
 
-    def pantalla_reservar(self):
+    def pantalla_reservar(self, movie_data):
         # Create the reservation screen
         reserva_screen = tk.Toplevel(self.root)
         reserva_screen.geometry("650x400")
@@ -324,17 +331,19 @@ class CinemaApp:
         unit_price_label = ttk.Label(reserva_screen, text="Valor unitario de cada entrada: $1000")
         unit_price_label.pack()
 
+        pelicula = movie_data[3]
 
         # Button to add ticket details to the cart
         add_to_cart_button = ttk.Button(reserva_screen, text="Agregar al carrito",
-                                        command=lambda: self.add_to_cart(quantity_entry.get(), 1000))
+                                        command=lambda: self.add_to_cart(quantity_entry.get(), 1000, pelicula))
         add_to_cart_button.pack()
 
         # Button to add snacks to the cart
         add_snack_button = ttk.Button(reserva_screen, text="Añadir Snack", command=self.show_snacks)
         add_snack_button.pack()
 
-    def add_to_cart(self, quantity, unit_price):
+    def add_to_cart(self, quantity, unit_price, pelicula):
+        self.pelicula = pelicula
         try:
             quantity = int(quantity)
             unit_price = float(unit_price)
@@ -417,10 +426,15 @@ class CinemaApp:
 
         # Display the total price rounded to two decimal places
         ttk.Label(checkout_screen, text=f"Total: ${total_price:.2f}").pack()
+        if "Entradas" in self.carrito and self.carrito["Entradas"]:
+            self.cantidad_entradas = self.carrito["Entradas"]
+
+        self.ubicaciontotem = self.locations[int(self.actual_location) - 1]
 
         pagar_button = ttk.Button(checkout_screen, text="Pagar", command=lambda: self.generar_QR())
         pagar_button.pack()
 
+        checkout_screen.destroy()
     def get_item_details(self, item_id):
         # Placeholder for item details (replace this with your actual data structure)
         if item_id == 'Entradas':
@@ -436,13 +450,35 @@ class CinemaApp:
 
         return {"name": item_id, "price": item_price}
 
-    def generar_QR(self):
-        image = qrcode.make("La data de la compra")
-        image.save("QR-Compra " + "numero" + ".png")
+    import os
 
-        image_1 = Image.open(r'QR-Compra numero.png')
-        im_1 = image_1.convert('RGB')
-        im_1.save(r'QR-Compra numero.pdf')
+    def generar_QR(self):
+        # Obtener la fecha y hora actual como marca de tiempo
+        date = datetime.timestamp(datetime.now())
+
+        # Crear el nombre del archivo con la ruta completa para el PNG
+        png_file = os.path.join('QR', f'{date}.png')
+
+        # Crear el nombre del archivo con la ruta completa para el PDF
+        pdf_file = os.path.join('QR', f'{date}.pdf')
+
+        # Crear el nombre para el QR
+        name = f"{self.idqr} + {self.pelicula} + {self.ubicaciontotem} + {self.cantidad_entradas} + {datetime.timestamp(datetime.now())}"
+
+        # Generar el código QR como imagen
+        image = qrcode.make(name)
+
+        # Guardar el código QR como PNG temporal
+        image.save(png_file)
+
+        # Convertir el PNG a PDF
+        Image.open(png_file).convert("RGB").save(pdf_file)
+
+        # Eliminar el archivo PNG
+        os.remove(png_file)
+
+        print(f"QR generado y guardado en: {pdf_file}")
+        self.idqr += 1
 
 
 # Main
