@@ -10,9 +10,9 @@ import qrcode
 import os
 
 
-class CinemaApp:
+class AplicacionCine:
     def __init__(self, root):
-        self.snack_checkbox = None
+        self.checkbox_snack = None
         self.root = root
         self.root.title("Cinema Totem App")
 
@@ -21,7 +21,7 @@ class CinemaApp:
         self.ubicaciontotem = ''
         self.cantidad_entradas = 0
 
-        # Declare asientos as a class attribute
+        # Declarar asientos como un atributo de clase
         self.asientos = {}
 
         self.carrito = {}
@@ -31,447 +31,375 @@ class CinemaApp:
         self.api_token = "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.DGI_v9bwNm_kSrC-CQSb3dBFzxOlrtBDHcEGXvCFqgU"
 
         # Variables de seguimiento
-        self.cinema_id, self.locations, self.available_seats = self.get_cinema_data()
-        self.selected_location = tk.StringVar()
-        self.movie_labels = []
-        self.actual_location = 1
+        self.cine_id, self.ubicaciones, self.sillas_disponibles = self.obtener_datos_cine()
+        self.ubicacion_seleccionada = tk.StringVar()
+        self.etiquetas_peliculas = []
+        self.ubicacion_actual = 1
 
-        self.filtered_movies = False
-        self.search_entry = None
+        self.peliculas_filtradas = False
+        self.entrada_busqueda = None
 
         # Pantalla principal
-        self.create_main_screen()
+        self.crear_pantalla_principal()
 
-        self.movies_frame = ttk.Frame(self.root)
-        self.movies_frame.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        self.frame_peliculas = ttk.Frame(self.root)
+        self.frame_peliculas.grid(row=1, column=1, padx=10, pady=10, sticky="w")
 
-    def selection_changed(self, event):
-        selected_location = self.selected_location.get()
-        location_index = self.locations.index(selected_location)
-        cinema_id = self.cinema_id[location_index]
-        self.actual_location= cinema_id
-        movies = self.get_cinema_movies_data(cinema_id)[0]["has_movies"]
-        self.display_movies(self.movies_frame, movies)
+    def seleccion_cambiada(self, event):
+        ubicacion_seleccionada = self.ubicacion_seleccionada.get()
+        indice_ubicacion = self.ubicaciones.index(ubicacion_seleccionada)
+        cinema_id = self.cine_id[indice_ubicacion]
+        self.ubicacion_actual = cinema_id
+        peliculas = self.obtener_datos_peliculas_cine(cinema_id)[0]["has_movies"]
+        self.mostrar_peliculas(self.frame_peliculas, peliculas)
 
-
-    def get_cinema_data(self):
+    def obtener_datos_cine(self):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/cinemas", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/cinemas", headers=headers)
 
-        if response.status_code == 200:
-            cinemas = response.json()
-            cinema_id = [cinema["cinema_id"] for cinema in cinemas]
-            locations = [cinema["location"] for cinema in cinemas]
-            available_seats = [cinema["available_seats"] for cinema in cinemas]
+        if respuesta.status_code == 200:
+            cines = respuesta.json()
+            cinema_id = [cine["cinema_id"] for cine in cines]
+            ubicaciones = [cine["location"] for cine in cines]
+            available_seats = [cine["available_seats"] for cine in cines]
 
-            # Set asientos if it's empty
+            # Set asientos si está vacío
             if not self.asientos:
-                self.asientos = dict(zip(locations, available_seats))
-            return cinema_id, locations, available_seats
+                self.asientos = dict(zip(ubicaciones, available_seats))
+            return cinema_id, ubicaciones, available_seats
         else:
-            # Manejar el error según sea necesario
             print("Error al obtener datos desde la API")
             return [], []
 
-    def get_movies_data(self):
+    def obtener_datos_peliculas(self):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/movies", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/movies", headers=headers)
 
-        if response.status_code == 200:
-            movies = response.json()
-            movie_id = [movie["movie_id"] for movie in movies]
-            movie_name = [movie["name"] for movie in movies]
-            poster_id = [movie["poster_id"] for movie in movies]
-            return movie_id, movie_name, poster_id
+        if respuesta.status_code == 200:
+            peliculas = respuesta.json()
+            id_pelicula = [pelicula["movie_id"] for pelicula in peliculas]
+            nombre_pelicula = [pelicula["name"] for pelicula in peliculas]
+            id_poster = [pelicula["poster_id"] for pelicula in peliculas]
+            return id_pelicula, nombre_pelicula, id_poster
         else:
             print("Error al obtener datos de películas desde la API")
             return [], [], []
 
-    def get_movie_data(self, movie_id):
+    def obtener_datos_pelicula(self, id_pelicula):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/movies/{movie_id}", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/movies/{id_pelicula}", headers=headers)
 
-        if response.status_code == 200:
-            movie = response.json()
-            movie_id = movie.get("id", None)
-            poster_id = movie.get("poster_id", None)
-            release_date = movie.get("release_date", "")
-            movie_name = movie.get("name", None)
-            synopsis = movie.get("synopsis", None)
-            gender = movie.get("gender", None)
+        if respuesta.status_code == 200:
+            pelicula = respuesta.json()
+            id_pelicula = pelicula.get("id", None)
+            id_poster = pelicula.get("poster_id", None)
+            fecha_estreno = pelicula.get("release_date", "")
+            nombre_pelicula = pelicula.get("name", None)
+            sinopsis = pelicula.get("synopsis", None)
+            genero = pelicula.get("gender", None)
 
-            # Convert duration to integer (assuming it's always in minutes)
-            duration_raw = movie.get("duration", "0min")
-            duration = int(''.join(filter(str.isdigit, duration_raw)))
+            # Convertir la duración a entero (suponiendo que siempre está en minutos)
+            duracion_bruta = pelicula.get("duration", "0min")
+            duracion = int(''.join(filter(str.isdigit, duracion_bruta)))
 
-            actors = movie.get("actors", "").split(", ")
-            directors = movie.get("directors", "").split(", ")
-            rating = movie.get("rating", None)
+            actores = pelicula.get("actors", "").split(", ")
+            directores = pelicula.get("directors", "").split(", ")
+            rating = pelicula.get("rating", None)
 
-            return movie_id, poster_id, release_date, movie_name, synopsis, gender, duration, actors, directors, rating
+            return id_pelicula, id_poster, fecha_estreno, nombre_pelicula, sinopsis, genero, duracion, actores, directores, rating
         else:
             print("Error al obtener datos de la película desde la API")
             return None, None, None, None, None, None, None, None, None, None
 
-    def get_poster_data(self, poster_id):
+    def obtener_datos_poster(self, id_poster):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/posters/{poster_id}", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/posters/{id_poster}", headers=headers)
 
-        if response.status_code == 200:
-            return response.json()["poster_image"]
+        if respuesta.status_code == 200:
+            return respuesta.json()["poster_image"]
         else:
-            # Manejar el error según sea necesario
-            print(f"Error al obtener datos del póster {poster_id} desde la API")
+            print(f"Error al obtener datos del póster {id_poster} desde la API")
             return {}
 
-    def get_snack_data(self):
+    def obtener_datos_snacks(self):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/snacks", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/snacks", headers=headers)
 
-        if response.status_code == 200:
-            return response.json()
+        if respuesta.status_code == 200:
+            return respuesta.json()
         else:
-            # Manejar el error según sea necesario
             print(f"Error al obtener datos de los snacks desde la API")
             return {}
 
-    def get_movies_cinema_data(self, movie_id):
+    def obtener_datos_peliculas_cine(self, cinema_id):
         headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/movies/{movie_id}/cinemas", headers=headers)
+        respuesta = requests.get(f"{self.api_url}/cinemas/{cinema_id}/movies", headers=headers)
 
-        if response.status_code == 200:
-            cinemas = response.json()
-            cinema_id = [cinema["cinema_id"] for cinema in cinemas]
-            has_movies = [cinema["has_movies"] for cinema in cinemas]
-            return cinema_id, has_movies
+        if respuesta.status_code == 200:
+            return respuesta.json()
         else:
-            # Manejar el error según sea necesario
-            print(f"Error al obtener datos del los cines de la pelicula {movie_id} desde la API")
+            print(f"Error al obtener datos del las películas del cine {cinema_id} desde la API")
             return {}
 
-    def get_cinema_movies_data(self, cinema_id):
-        headers = {"Authorization": self.api_token}
-        response = requests.get(f"{self.api_url}/cinemas/{cinema_id}/movies", headers=headers)
+    def crear_pantalla_principal(self):
+        label_ubicacion = ttk.Label(self.root, text="Ubicación del totem:")
+        combobox_ubicacion = ttk.Combobox(self.root,
+                                          state="readonly",
+                                          values=self.ubicaciones,
+                                          textvariable=self.ubicacion_seleccionada)
 
-        if response.status_code == 200:
-            return response.json()
-        else:
-            # Manejar el error según sea necesario
-            print(f"Error al obtener datos del las pelicuas del cine {cinema_id} desde la API")
-            return {}
+        combobox_ubicacion.bind("<<ComboboxSelected>>", self.seleccion_cambiada)
 
-    def create_main_screen(self):
-        location_label = ttk.Label(self.root, text="Ubicación del totem:")
-        location_combobox = ttk.Combobox(self.root,
-                                         state="readonly",
-                                         values=self.locations,
-                                         textvariable=self.selected_location)
+        if self.ubicaciones:
+            combobox_ubicacion.set(self.ubicaciones[0])
 
-        location_combobox.bind("<<ComboboxSelected>>", self.selection_changed)
+        label_peliculas = ttk.Label(self.root, text="Cartelera:")
+        frame_peliculas = ttk.Frame(self.root)
+        peliculas = self.obtener_datos_peliculas_cine(1)[0]["has_movies"]
+        self.mostrar_peliculas(frame_peliculas, peliculas)
 
-        if self.locations:
-            location_combobox.set(self.locations[0])
-
-        movies_label = ttk.Label(self.root, text="Cartelera:")
-        movies_frame = ttk.Frame(self.root)
-        movies = self.get_cinema_movies_data(1)[0]["has_movies"]
-        self.display_movies(movies_frame, movies)
-
-        search_label = ttk.Label(self.root, text="Buscar película:")
-        search_entry = ttk.Entry(self.root)
-        self.search_entry = search_entry
-        search_button = ttk.Button(self.root, text="Buscar", command=self.search_movie)
+        label_busqueda = ttk.Label(self.root, text="Buscar película:")
+        entrada_busqueda = ttk.Entry(self.root)
+        self.entrada_busqueda = entrada_busqueda
+        boton_busqueda = ttk.Button(self.root, text="Buscar", command=self.buscar_pelicula)
 
         # Diseño de la pantalla principal
-        location_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
-        location_combobox.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+        label_ubicacion.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        combobox_ubicacion.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
-        movies_label.grid(row=1, column=0, padx=10, pady=10, sticky="w")
-        movies_frame.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+        label_peliculas.grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        frame_peliculas.grid(row=1, column=1, padx=10, pady=10, sticky="w")
 
-        search_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
-        search_entry.grid(row=2, column=1, padx=10, pady=10, sticky="w")
-        search_button.grid(row=2, column=2, padx=10, pady=10)
+        label_busqueda.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+        entrada_busqueda.grid(row=2, column=1, padx=10, pady=10, sticky="w")
+        boton_busqueda.grid(row=2, column=2, padx=10, pady=10)
 
-        checkout_button = ttk.Button(self.root, text="Checkout", command=self.show_checkout_screen)
-        checkout_button.grid(row=3, column=0, padx=10, pady=10, sticky="w")
+        boton_checkout = ttk.Button(self.root, text="Checkout", command=self.mostrar_pantalla_checkout)
+        boton_checkout.grid(row=3, column=0, padx=10, pady=10, sticky="w")
 
-    def show_movie_details(self, movie_id):
-        # Obtener datos de la película
-        movie_data = self.get_movie_data(int(movie_id))
+    def mostrar_detalles_pelicula(self, id_pelicula):
+        datos_pelicula = self.obtener_datos_pelicula(int(id_pelicula))
 
-        # Crear la pantalla secundaria
-        secondary_screen = tk.Toplevel(self.root)
-        secondary_screen.geometry("650x400")
-        secondary_screen.title("Detalles de la Película")
+        pantalla_secundaria = tk.Toplevel(self.root)
+        pantalla_secundaria.geometry("650x400")
+        pantalla_secundaria.title("Detalles de la Película")
 
-        # Mostrar sala de proyección
-        cinema_label = ttk.Label(secondary_screen, text=f"Sala de proyección: {self.selected_location.get()}")
-        cinema_label.pack(pady=10)
+        label_cinema = ttk.Label(pantalla_secundaria, text=f"Sala de proyección: {self.ubicacion_seleccionada.get()}")
+        label_cinema.pack(pady=10)
 
-        # Mostrar sinopsis, duración, actores y género
-        movie_id, poster_id, release_date, movie_name, synopsis, gender, duration, actors, directors, rating = movie_data
-        details_label = ttk.Label(secondary_screen, text=f"Detalles de {movie_name}:")
-        details_label.pack(pady=10)
+        id_pelicula, id_poster, fecha_estreno, nombre_pelicula, sinopsis, genero, duracion, actores, directores, rating = datos_pelicula
+        label_detalles = ttk.Label(pantalla_secundaria, text=f"Detalles de {nombre_pelicula}:")
+        label_detalles.pack(pady=10)
 
-        # Create a scrolled text widget
-        text_widget = scrolledtext.ScrolledText(secondary_screen, wrap=tk.WORD, width=40, height=1)
+        text_widget = scrolledtext.ScrolledText(pantalla_secundaria, wrap=tk.WORD, width=40, height=1)
         text_widget.pack(expand=True, fill="both")
 
-        details_text = f"Sinopsis: {synopsis}"
-        text_widget.insert(tk.END, details_text)
+        detalles_texto = f"Sinopsis: {sinopsis}"
+        text_widget.insert(tk.END, detalles_texto)
         text_widget.configure(state=tk.DISABLED)
 
-        details_text2 = f"Género: {gender}\nDuración: {duration} minutos\nActores: {', '.join(actors)}"
-        details_info = ttk.Label(secondary_screen, text=details_text2, anchor="w")
-        details_info.pack(pady=10)
+        detalles_texto2 = f"Género: {genero}\nDuración: {duracion} minutos\nActores: {', '.join(actores)}"
+        detalles_info = ttk.Label(pantalla_secundaria, text=detalles_texto2, anchor="w")
+        detalles_info.pack(pady=10)
 
-        # Botón para volver a la pantalla principal
-        back_button = ttk.Button(secondary_screen, text="Volver a pantalla principal", command=secondary_screen.destroy)
-        back_button.pack(pady=20)
+        boton_volver = ttk.Button(pantalla_secundaria, text="Volver a pantalla principal",
+                                  command=pantalla_secundaria.destroy)
+        boton_volver.pack(pady=20)
 
-        # Boton de reservar
-        reservar_button = ttk.Button(secondary_screen, text="Reservar", command=lambda: self.reservar(movie_data))
-        reservar_button.pack(pady=10)
+        boton_reservar = ttk.Button(pantalla_secundaria, text="Reservar", command=lambda: self.reservar(datos_pelicula))
+        boton_reservar.pack(pady=10)
 
-    def display_movies(self, container, movies):
-        # Lógica existente para ocultar las películas en caso de búsqueda
-        if self.filtered_movies:
-            for label in self.movie_labels:
-                label.grid_forget()
-            self.movie_labels = []
+    def mostrar_peliculas(self, container, peliculas):
+        if self.peliculas_filtradas:
+            for etiqueta in self.etiquetas_peliculas:
+                etiqueta.grid_forget()
+            self.etiquetas_peliculas = []
 
-        # Hide existing posters in the container
-        for label in self.movie_labels:
-            label.grid_forget()
+        for etiqueta in self.etiquetas_peliculas:
+            etiqueta.grid_forget()
 
-        self.movie_labels = []  # Clear the list of movie labels
+        self.etiquetas_peliculas = []
 
-        for i, movie in enumerate(movies):
-            # Calculate row and column based on index
+        for i, pelicula in enumerate(peliculas):
             row = i // 5
             column = i % 5
-            poster_id = movie
-            if poster_id:
-                poster_data = self.get_poster_data(poster_id)
-                label = self.display_image_cv2(poster_data, row, container, column)
-                self.movie_labels.append(label)
+            id_poster = pelicula
+            if id_poster:
+                datos_poster = self.obtener_datos_poster(id_poster)
+                etiqueta = self.mostrar_imagen_cv2(datos_poster, row, container, column)
+                self.etiquetas_peliculas.append(etiqueta)
+                etiqueta.bind("<Button-1>", lambda event, pelicula=id_poster: self.mostrar_detalles_pelicula(pelicula))
 
-                # Bind the callback function to the label
-                label.bind("<Button-1>", lambda event, movie=poster_id: self.show_movie_details(movie))
-
-    def display_image_cv2(self, poster_data, row, container, column):
-        if poster_data:
-            _, image_data = poster_data.split(",", 1)
+    def mostrar_imagen_cv2(self, datos_poster, row, container, column):
+        if datos_poster:
+            _, image_data = datos_poster.split(",", 1)
             image_data = base64.b64decode(image_data)
             image_np = np.frombuffer(image_data, np.uint8)
             image_cv2 = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
 
             resized_image = cv2.resize(image_cv2, (100, 150))
-
-            # Create a PhotoImage object from the image_cv2
             image_tk = Image.fromarray(cv2.cvtColor(resized_image, cv2.COLOR_BGR2RGB))
             image_tk = ImageTk.PhotoImage(image_tk)
 
-            # Display the image using Label
-            label = ttk.Label(container, image=image_tk)
-            label.grid(row=row, column=column, padx=10, pady=5)
-            label.image = image_tk
+            etiqueta = ttk.Label(container, image=image_tk)
+            etiqueta.grid(row=row, column=column, padx=10, pady=5)
+            etiqueta.image = image_tk
 
-            return label
+            return etiqueta
 
         return None
 
-    def search_movie(self):
-        """
-        Realiza la búsqueda de películas y actualiza la visualización.
-        """
-        search_entry_content = self.search_entry.get()  # Obtén el contenido del Entry de búsqueda
-        if search_entry_content:
-            filtered_movie_ids = self.filter_movies(search_entry_content)
-            self.display_movies(self.movies_frame, filtered_movie_ids)
-            self.filtered_movies = True
+    def buscar_pelicula(self):
+        contenido_busqueda = self.entrada_busqueda.get()
+        if contenido_busqueda:
+            peliculas_filtradas = self.filtrar_peliculas(contenido_busqueda)
+            self.mostrar_peliculas(self.frame_peliculas, peliculas_filtradas)
+            self.peliculas_filtradas = True
         else:
-            # Si el Entry de búsqueda está vacío, muestra todas las películas
-            movies = self.get_cinema_movies_data(self.actual_location)[0]["has_movies"]
-            self.display_movies(self.movies_frame, movies)
-            self.filtered_movies = False  # Actualiza la variable de control
+            peliculas = self.obtener_datos_peliculas_cine(self.ubicacion_actual)[0]["has_movies"]
+            self.mostrar_peliculas(self.frame_peliculas, peliculas)
+            self.peliculas_filtradas = False
 
-    def filter_movies(self, movie_name):
-        """
-        Filtra las películas por nombre.
-        """
-        movie_id, movie_names, _ = self.get_movies_data()
-        filtered_movies = [movie_id[i] for i, name in enumerate(movie_names) if movie_name.lower() in name.lower()]
-        return filtered_movies
+    def filtrar_peliculas(self, nombre_pelicula):
+        id_pelicula, nombres_peliculas, _ = self.obtener_datos_peliculas()
+        peliculas_filtradas = [id_pelicula[i] for i, nombre in enumerate(nombres_peliculas) if
+                               nombre_pelicula.lower() in nombre.lower()]
+        return peliculas_filtradas
 
-    def reservar(self, movie_data):
-        # Check if asientos is empty, and initialize it if necessary
+    def reservar(self, datos_pelicula):
         if not self.asientos:
-            cinema_id, locations, available_seats = self.get_cinema_data()
-            self.asientos = dict(zip(locations, available_seats))
+            cinema_id, ubicaciones, available_seats = self.obtener_datos_cine()
+            self.asientos = dict(zip(ubicaciones, available_seats))
 
-        ubicacion = self.locations[int(self.actual_location) - 1]
+        ubicacion = self.ubicaciones[int(self.ubicacion_actual) - 1]
         if self.asientos[ubicacion] > 0:
-            self.pantalla_reservar(movie_data)
-        pass
+            self.pantalla_reservar(datos_pelicula)
 
     def pantalla_reservar(self, movie_data):
-        # Create the reservation screen
         reserva_screen = tk.Toplevel(self.root)
         reserva_screen.geometry("650x400")
         reserva_screen.title("Reserva de película")
 
-        # Entry widgets for ticket details
-        quantity_label = ttk.Label(reserva_screen, text="Cantidad de entradas:")
-        quantity_entry = ttk.Entry(reserva_screen)
-        quantity_label.pack()
-        quantity_entry.pack()
+        cantidad_label = ttk.Label(reserva_screen, text="Cantidad de entradas:")
+        cantidad_entry = ttk.Entry(reserva_screen)
+        cantidad_label.pack()
+        cantidad_entry.pack()
 
-        unit_price_label = ttk.Label(reserva_screen, text="Valor unitario de cada entrada: $1000")
-        unit_price_label.pack()
+        precio_unitario_label = ttk.Label(reserva_screen, text="Valor unitario de cada entrada: $1000")
+        precio_unitario_label.pack()
 
         pelicula = movie_data[3]
 
-        # Button to add ticket details to the cart
-        add_to_cart_button = ttk.Button(reserva_screen, text="Agregar al carrito",
-                                        command=lambda: self.add_to_cart(quantity_entry.get(), 1000, pelicula))
-        add_to_cart_button.pack()
+        añadir_al_carrito_button = ttk.Button(reserva_screen, text="Agregar al carrito",
+                                              command=lambda: self.añadir_al_carrito(cantidad_entry.get(), 1000, pelicula))
+        añadir_al_carrito_button.pack()
 
-        # Button to add snacks to the cart
-        add_snack_button = ttk.Button(reserva_screen, text="Añadir Snack", command=self.show_snacks)
-        add_snack_button.pack()
+        añadir_snack_button = ttk.Button(reserva_screen, text="Añadir Snack", command=self.mostrar_snacks)
+        añadir_snack_button.pack()
 
-    def add_to_cart(self, quantity, unit_price, pelicula):
+    def añadir_al_carrito(self, cantidad, precio_unitario, pelicula):
         self.pelicula = pelicula
         try:
-            quantity = int(quantity)
-            unit_price = float(unit_price)
-            total_price = quantity * unit_price
+            cantidad = int(cantidad)
+            precio_unitario = float(precio_unitario)
+            precio_total = cantidad * precio_unitario
 
             if "Entradas" in self.carrito:
-                self.carrito["Entradas"] += quantity
+                self.carrito["Entradas"] += cantidad
             else:
-                self.carrito["Entradas"] = quantity
-            print(f"Added {quantity} tickets to the cart. Total price: {total_price}")
+                self.carrito["Entradas"] = cantidad
+            print(f"Se añadieron {cantidad} tickets al carrito. Precio total: {precio_total}")
         except ValueError:
             messagebox.showerror("Error", "Ingrese valores válidos para la cantidad y el precio unitario.")
 
-    def show_snacks(self):
-        # Retrieve snack data from the API (use your existing API request logic)
-        snacks_data = self.get_snack_data()
+    def mostrar_snacks(self):
+        snacks_data = self.obtener_datos_snacks()
 
-        # Create a new window to display snack options
         snacks_screen = tk.Toplevel(self.root)
         snacks_screen.title("Añadir Snack al Carrito")
 
-        # Create Entry widgets for each snack along with their prices
         snack_entries = {}
-        for snack, price in snacks_data.items():
-            label_text = f"{snack}: {price} pesos"
+        for snack, precio in snacks_data.items():
+            label_text = f"{snack}: {precio} pesos"
             ttk.Label(snacks_screen, text=label_text).pack()
 
-            # Entry widget for quantity
-            quantity_entry = ttk.Entry(snacks_screen)
-            quantity_entry.pack()
+            cantidad_entry = ttk.Entry(snacks_screen)
+            cantidad_entry.pack()
 
-            snack_entries[snack] = quantity_entry
+            snack_entries[snack] = cantidad_entry
 
-        # Button to add entered quantities to the cart
-        add_snacks_to_cart_button = ttk.Button(snacks_screen, text="Agregar al carrito",
-                                               command=lambda: self.add_snacks_to_cart(snack_entries, snacks_screen))
-        add_snacks_to_cart_button.pack()
+        añadir_snacks_al_carrito_button = ttk.Button(snacks_screen, text="Agregar al carrito",
+                                                     command=lambda: self.añadir_snacks_al_carrito(snack_entries, snacks_screen))
+        añadir_snacks_al_carrito_button.pack()
 
-    def add_snacks_to_cart(self, snack_entries, snacks_screen):
+    def añadir_snacks_al_carrito(self, snack_entries, snacks_screen):
         for snack, entry in snack_entries.items():
-            quantity = entry.get()
-            if quantity:
-                quantity = int(quantity)
-                self.carrito[snack] = quantity
+            cantidad = entry.get()
+            if cantidad:
+                cantidad = int(cantidad)
+                self.carrito[snack] = cantidad
 
         print("Added snacks to the cart:", self.carrito)
 
-        # Destroy the snacks screen
         snacks_screen.destroy()
 
-    def show_checkout_screen(self):
+    def mostrar_pantalla_checkout(self):
         checkout_screen = tk.Toplevel(self.root)
         checkout_screen.title("Carrito")
 
-        # Create labels to display cart contents
         ttk.Label(checkout_screen, text="Detalle de la compra").pack(pady=10)
 
-        total_price = 0  # Variable to calculate the total price
+        total_price = 0
 
-        # Iterate through items in the cart
         for item_id, quantity in self.carrito.items():
-            # For snacks, fetch the price dynamically
             if item_id != 'Entradas':
-                item_details = self.get_snack_data().get(item_id)
+                item_details = self.obtener_datos_snacks().get(item_id)
                 if item_details:
                     item_price = float(item_details)
                 else:
-                    # Handle the case where the price is not available
                     item_price = 0.0
             else:
-                # For 'Entradas', use a fixed price since it's not in the snack data
                 item_price = 1000.0
 
-            # Calculate the price for the quantity
             item_total_price = quantity * item_price
             total_price += item_total_price
 
-            # Display item details in the checkout screen
-            ttk.Label(checkout_screen, text=f"{item_id}: {quantity}x ${item_price:.2f} = ${item_total_price:.2f}").pack()
+            ttk.Label(checkout_screen,
+                      text=f"{item_id}: {quantity}x ${item_price:.2f} = ${item_total_price:.2f}").pack()
 
-        # Display the total price rounded to two decimal places
         ttk.Label(checkout_screen, text=f"Total: ${total_price:.2f}").pack()
         if "Entradas" in self.carrito and self.carrito["Entradas"]:
             self.cantidad_entradas = self.carrito["Entradas"]
 
-        self.ubicaciontotem = self.locations[int(self.actual_location) - 1]
+        self.ubicaciontotem = self.ubicaciones[int(self.ubicacion_actual) - 1]
 
         pagar_button = ttk.Button(checkout_screen, text="Pagar", command=lambda: self.generar_QR(checkout_screen))
         pagar_button.pack()
 
-    def get_item_details(self, item_id):
-        # Placeholder for item details (replace this with your actual data structure)
+    def obtener_detalle_de_items(self, item_id):
         if item_id == 'Entradas':
             return {"name": "Entradas de Cine", "price": 1000.0}
 
-        # For snacks, fetch the price dynamically
-        snack_data = self.get_snack_data().get(item_id)
+        snack_data = self.obtener_datos_snacks().get(item_id)
         if snack_data:
             item_price = float(snack_data)
         else:
-            # Handle the case where the price is not available
             item_price = 0.0
 
         return {"name": item_id, "price": item_price}
 
-    import os
-
     def generar_QR(self, checkout_screen):
-        # Crear el nombre del archivo con la ruta completa para el PNG
         png_file = os.path.join('QR', f'{self.idqr}.png')
 
-        # Crear el nombre del archivo con la ruta completa para el PDF
         pdf_file = os.path.join('QR', f'{self.idqr}.pdf')
 
-        # Crear el nombre para el QR
         name = f"{self.idqr} + {self.pelicula} + {self.ubicaciontotem} + {self.cantidad_entradas} + {datetime.timestamp(datetime.now())}"
 
-        # Generar el código QR como imagen
         image = qrcode.make(name)
 
-        # Guardar el código QR como PNG temporal
         image.save(png_file)
 
-        # Convertir el PNG a PDF
         Image.open(png_file).convert("RGB").save(pdf_file)
-
-        # Eliminar el archivo PNG
-        #os.remove(png_file)
 
         print(f"QR generado y guardado en: {pdf_file}")
         self.idqr += 1
@@ -480,8 +408,9 @@ class CinemaApp:
 
         self.carrito = {}
 
+
 # Main
 if __name__ == "__main__":
     root = tk.Tk()
-    app = CinemaApp(root)
+    app = AplicacionCine(root)
     root.mainloop()
