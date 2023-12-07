@@ -431,10 +431,9 @@ class CinemaApp:
 
         self.ubicaciontotem = self.locations[int(self.actual_location) - 1]
 
-        pagar_button = ttk.Button(checkout_screen, text="Pagar", command=lambda: self.generar_QR())
+        pagar_button = ttk.Button(checkout_screen, text="Pagar", command=lambda: self.generar_QR(checkout_screen))
         pagar_button.pack()
 
-        checkout_screen.destroy()
     def get_item_details(self, item_id):
         # Placeholder for item details (replace this with your actual data structure)
         if item_id == 'Entradas':
@@ -452,15 +451,12 @@ class CinemaApp:
 
     import os
 
-    def generar_QR(self):
-        # Obtener la fecha y hora actual como marca de tiempo
-        date = datetime.timestamp(datetime.now())
-
+    def generar_QR(self, checkout_screen):
         # Crear el nombre del archivo con la ruta completa para el PNG
-        png_file = os.path.join('QR', f'{date}.png')
+        png_file = os.path.join('QR', f'{self.idqr}.png')
 
         # Crear el nombre del archivo con la ruta completa para el PDF
-        pdf_file = os.path.join('QR', f'{date}.pdf')
+        pdf_file = os.path.join('QR', f'{self.idqr}.pdf')
 
         # Crear el nombre para el QR
         name = f"{self.idqr} + {self.pelicula} + {self.ubicaciontotem} + {self.cantidad_entradas} + {datetime.timestamp(datetime.now())}"
@@ -475,11 +471,14 @@ class CinemaApp:
         Image.open(png_file).convert("RGB").save(pdf_file)
 
         # Eliminar el archivo PNG
-        os.remove(png_file)
+        #os.remove(png_file)
 
         print(f"QR generado y guardado en: {pdf_file}")
         self.idqr += 1
 
+        checkout_screen.destroy()
+
+        self.carrito = {}
 
 # Main
 if __name__ == "__main__":
